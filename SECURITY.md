@@ -1,19 +1,23 @@
 # Security policy
 
-## Supported versions
+## Which versions get fixes
 
-Security fixes are made for the latest released minor version.
+Security fixes go into the latest released minor version.
 
 ## Reporting a vulnerability
 
-Please **do not open a public issue**. Use GitHub's private reporting:
-**Security → Report a vulnerability** on this repository. You will get an answer within a few days.
+Please don't open a public issue for a vulnerability. Use GitHub's private reporting instead:
+open the **Security** tab of this repository and choose **Report a vulnerability**. I will answer
+within a few days.
 
-## Scope and known trade-offs
+## What this project is, and what it isn't
 
-DevOps Insights is a personal lab project. By design, every component that has a login uses
-`admin` / `admin` and the web application has no login of its own. **Do not expose a default
-deployment to the internet.** Before doing so, change the credentials (see `docs/observability.md`
-and the Helm values), put the application behind authentication, and use an external secret store.
+DevOps Insights is a personal lab project, and it is built like one on purpose. Every component
+with a login uses `admin` / `admin`, and the web application has no login at all. That makes it
+pleasant to explore and unsafe to expose.
 
-Only public data is read from GitHub; no personal data is collected.
+So please **don't put a default installation on the internet**. If you want to, first change the
+credentials (see [docs/observability.md](docs/observability.md) and the Helm values), put the
+application behind some form of authentication, and keep the secrets in a proper secret store.
+
+The project only reads public data from GitHub and does not collect any personal data.

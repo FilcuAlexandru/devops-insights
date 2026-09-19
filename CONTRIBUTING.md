@@ -1,21 +1,25 @@
 # Contributing
 
-Thank you for helping. Set up and run everything with [docs/local-testing.md](docs/local-testing.md);
-[docs/development.md](docs/development.md) explains the code layout and how to add technologies,
-endpoints and pages.
+Thanks for wanting to help. This page is short on purpose; the details live in the guides.
 
-## Workflow
+To get everything running on your machine, start with [docs/local-testing.md](docs/local-testing.md).
+To find your way around the code (and to add a technology, an endpoint or a page), read
+[docs/development.md](docs/development.md).
 
-1. Create a branch from `main`: `feat/<topic>`, `fix/<topic>` or `docs/<topic>`.
-2. Make the change with tests. Run `make check` (lint, tests, Helm, version and monitoring sync).
-3. Open a pull request. CI must pass and the change is merged with **squash and merge**.
+## How a change goes in
 
-`main` is protected: no direct pushes, every change goes through a pull request.
+1. Create a branch from `main`. Names like `feat/release-tracking`, `fix/rate-limit-message` or
+   `docs/openshift-linux` make the history easy to read.
+2. Make your change, and add tests for it. Before you push, run `make check`. It does the same
+   things as the CI: linting, the tests, the Helm and version checks.
+3. Open a pull request. It needs a green CI, and it is merged with **squash and merge**.
+
+`main` is protected. Nothing is pushed to it directly; everything goes through a pull request.
 
 ## Commit messages and pull request titles
 
-[Conventional Commits](https://www.conventionalcommits.org/), because the squashed title becomes
-the changelog line and the release notes:
+Please use [Conventional Commits](https://www.conventionalcommits.org/). The title of a squashed
+pull request ends up in the history and in the release notes, so it should say what the change does:
 
 ```
 feat: track GitHub releases
@@ -24,17 +28,18 @@ docs: explain the OpenShift routes
 chore(deps): bump fastapi
 ```
 
-Types: `feat`, `fix`, `docs`, `refactor`, `test`, `ci`, `build`, `chore`. Add `!` (for example
-`feat!:`) or a `BREAKING CHANGE:` footer for incompatible changes.
+The usual types are `feat`, `fix`, `docs`, `refactor`, `test`, `ci`, `build` and `chore`. For a
+change that breaks compatibility, add a `!` (`feat!: ...`) or a `BREAKING CHANGE:` line in the
+body.
 
-## Code standards
+## What a good change looks like
 
 - Code, comments and documentation are in English.
-- Python is formatted and linted by Ruff; new behaviour needs tests; no test may call GitHub or
-  Ollama.
-- Database changes need an Alembic migration that works on a database that already holds data.
-- Update `CHANGELOG.md` under **Unreleased** for anything a user would notice.
+- Python passes Ruff, new behaviour has tests, and no test calls GitHub or Ollama.
+- A database change comes with an Alembic migration that also works on a database that already has
+  data in it.
+- Anything a user would notice is added to `CHANGELOG.md`, under **Unreleased**.
 
 ## Releases
 
-Maintainers release with [docs/releasing.md](docs/releasing.md).
+Whoever maintains the project cuts releases by following [docs/releasing.md](docs/releasing.md).

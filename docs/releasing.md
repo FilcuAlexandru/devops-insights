@@ -1,47 +1,58 @@
 # Releasing
 
-Releases are cut from `main` by pushing a version tag. The pipeline does the rest.
+A release is made from `main` by pushing a version tag. After that, the pipeline does the rest:
+tests, images, the Helm chart and the GitHub Release page.
 
-## One-time repository setup
+## Setting up the repository (once)
 
-Do this once, on GitHub, after the first push (the click path is in the repository settings):
+Do this after the first push. Everything is under the repository's **Settings** on GitHub.
 
-| Where | Setting |
+| Where | What to set |
 |---|---|
-| Settings → General | Enable **Allow squash merging** only; **Automatically delete head branches** on |
-| Settings → Actions → General | Workflow permissions: **Read repository contents**; allow GitHub Actions to create pull requests off |
-| Settings → Rules → Rulesets (or Branches) | Protect `main`: require a pull request, require the status checks `Backend (lint, migrations, tests)`, `Frontend (unit tests)`, `Helm and monitoring` and `Build images`, block force pushes, require linear history |
-| Settings → Rules → Rulesets | Protect tags matching `v*`: only maintainers can create them, no deletion |
-| Settings → Code security | Enable **Dependabot alerts**, **Dependabot security updates**, **Secret scanning**, **Push protection** and **Private vulnerability reporting** |
-| Settings → General → Features | Enable **Issues**; add topics such as `devops`, `fastapi`, `kubernetes`, `openshift`, `helm`, `argocd`, `prometheus`, `grafana`, `ollama` |
+| General | Allow only **squash merging**, and turn on **Automatically delete head branches** |
+| Actions → General | Workflow permissions: **Read repository contents and packages permissions**. Leave "Allow GitHub Actions to create and approve pull requests" off |
+| Rules → Rulesets | Protect the default branch: require a pull request, require the status checks `Backend (lint, migrations, tests)`, `Frontend (unit tests)`, `Helm and monitoring` and `Build images`, block force pushes, require a linear history |
+| Rules → Rulesets | Protect the tags that match `v*` so that nobody can move or delete them |
+| Advanced Security | Turn on the dependency graph, Dependabot alerts and security updates, secret scanning with push protection, and private vulnerability reporting |
+| General → Features | Turn on Issues, and add topics such as `devops`, `fastapi`, `kubernetes`, `openshift`, `helm`, `argocd`, `prometheus`, `grafana` and `ollama` |
 
-No secrets are needed: the workflows use the built-in `GITHUB_TOKEN`.
+If you are the only maintainer, don't require approvals in the ruleset: you can't approve your own
+pull request. Requiring the pull request and the green checks is enough.
+
+The rulesets can only offer a status check after it has run once, so create them after the first
+CI run. No secrets are needed anywhere: the workflows use the built-in `GITHUB_TOKEN`.
 
 ### Container packages
 
-The first publish creates the packages `devops-insights-backend`, `devops-insights-frontend` and
-the chart under **Packages** on your profile. New packages are **private** by default. Make them
-public so clusters can pull without credentials: open each package → **Package settings →
-Change visibility → Public**, and **Connect repository** so it appears on the repository page.
+The first time the pipeline publishes, GitHub creates the packages `devops-insights-backend` and
+`devops-insights-frontend`, and later the chart. New packages are **private**. Make them public so
+that clusters and other people can pull them without credentials: open each package, go to
+**Package settings → Change visibility → Public**, and check that it is connected to the
+repository.
 
-## Cutting a release
+One more thing that bites people: packages are not deleted together with their repository. If you
+ever delete and recreate the repository, delete its old packages first, otherwise the new
+workflow is denied when it tries to push.
 
-1. Update from `main`:
+## Making a release
+
+Start from an up-to-date `main`:
 
 ```bash
 git checkout main && git pull
 ```
 
-2. Choose the version ([Semantic Versioning](https://semver.org/): `fix` → patch, `feat` → minor,
-   breaking change → major) and write it into every file that carries it:
+Choose the next version by [Semantic Versioning](https://semver.org/): a fix is a patch, a new
+feature is a minor version, and anything incompatible is a major one. Then write it into every
+file that carries the version:
 
 ```bash
 scripts/version.sh set 0.3.0
 ```
 
-3. Move the **Unreleased** entries of `CHANGELOG.md` under a new heading `## [0.3.0] - YYYY-MM-DD`
-   and update the compare links at the bottom.
-4. Check, commit and open a pull request (releases go through review like any change):
+Open `CHANGELOG.md`, move what is under **Unreleased** into a new `## [0.3.0] - YYYY-MM-DD`
+section, and update the links at the bottom. Then check, commit and open a pull request. Releases
+go through review like any other change:
 
 ```bash
 make check
@@ -50,7 +61,7 @@ git commit -am "chore(release): v0.3.0"
 git push -u origin release/v0.3.0
 ```
 
-5. After the pull request is merged, tag the merge commit and push the tag:
+When the pull request has been merged, tag the merge commit and push the tag:
 
 ```bash
 git checkout main && git pull
@@ -58,17 +69,20 @@ git tag -a v0.3.0 -m "v0.3.0"
 git push origin v0.3.0
 ```
 
-## What the tag triggers (`.github/workflows/release.yml`)
+## What happens when you push a tag
 
-| Job | Result |
+`.github/workflows/release.yml` runs these jobs, one after the other:
+
+| Job | What it does |
 |---|---|
 | Verify | Fails unless the tag, every version field (`scripts/version.sh check`) and the changelog agree |
-| Tests | Backend and frontend tests against PostgreSQL |
-| Images | Multi-architecture (`linux/amd64`, `linux/arm64`) images `ghcr.io/<owner>/devops-insights-backend` and `-frontend` tagged `0.3.0`, `0.3`, `0` and `latest`, with an SBOM, signed build provenance and a Trivy scan that fails on critical vulnerabilities |
-| Chart | The Helm chart pushed as an OCI artifact to `ghcr.io/<owner>/charts` |
-| Release | A GitHub Release whose notes are the changelog entry plus the artifact list |
+| Tests | Runs the backend and frontend tests against PostgreSQL |
+| Images | Builds `devops-insights-backend` and `-frontend` for `linux/amd64` and `linux/arm64`, tags them `0.3.0`, `0.3`, `0` and `latest`, attaches an SBOM and signed build provenance, and scans them with Trivy, failing on critical vulnerabilities |
+| Chart | Publishes the Helm chart to `ghcr.io/<owner>/charts` as an OCI artifact |
+| Release | Creates the GitHub Release, with the changelog entry and the list of artifacts as its notes |
 
-Pushes to `main` publish development images tagged `main` and `sha-<commit>` (`ci.yml`).
+Pushes to `main` publish development images too, tagged `main` and `sha-<commit>` (that is
+`ci.yml`). The `latest` tag only ever moves on a release.
 
 ## Using a release
 
@@ -80,23 +94,24 @@ docker pull ghcr.io/filcualexandru/devops-insights-backend:0.3.0
 helm install devops-insights oci://ghcr.io/filcualexandru/charts/devops-insights --version 0.3.0 -n devops-insights --create-namespace
 ```
 
-Verify an image's provenance (needs the GitHub CLI):
+If you have the GitHub CLI, you can verify where an image came from:
 
 ```bash
 gh attestation verify oci://ghcr.io/filcualexandru/devops-insights-backend:0.3.0 --owner FilcuAlexandru
 ```
 
-For Argo CD, point `targetRevision` of the Application at a tag (`v0.3.0`) instead of `main` to
-deploy exactly that release.
+With Argo CD, point `targetRevision` of the Application at the tag (`v0.3.0`) instead of `main`,
+and it deploys exactly that release.
 
-## If a release fails
+## When a release fails
 
-- **Verify fails:** a version field is out of date. Fix it on `main`, delete the tag
-  (`git push origin :refs/tags/v0.3.0`, `git tag -d v0.3.0`) and tag again.
-- **Trivy fails on an image:** update the base image or dependency, merge, and re-tag as above.
-- **Never move a tag that already published images.** Publish a new patch version instead.
+- **Verify fails:** some version field is out of date. Fix it on `main`, delete the tag
+  (`git push origin :refs/tags/v0.3.0` and `git tag -d v0.3.0`) and tag again.
+- **Trivy fails on an image:** update the base image or the dependency it complains about, merge,
+  and re-tag as above.
+- **Never move a tag that has already published images.** Ship a new patch version instead.
 
-## Hotfix
+## Hotfixes
 
-Branch from the tag (`git checkout -b hotfix/0.3.1 v0.3.0`), fix, open a pull request to `main`,
-and release the next patch version.
+Branch from the tag (`git checkout -b hotfix/0.3.1 v0.3.0`), make the fix, open a pull request to
+`main`, and release the next patch version.

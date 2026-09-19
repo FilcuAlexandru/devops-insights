@@ -162,10 +162,12 @@ either one can change without touching the other.
 
 - **Kubernetes:** `make kind-up`, `make kind-load`, `make k8s-deploy`, and optionally
   `make argocd-install`. See [docs/kubernetes.md](docs/kubernetes.md).
-- **OpenShift:** the same chart with `values-openshift.yaml`. The images were checked to run
-  with the random user IDs OpenShift assigns; a real OpenShift cluster is the one thing I
-  haven't run it on yet. `make openshift-deploy` deploys and verifies it in one command, and
-  [docs/openshift.md](docs/openshift.md) says exactly what was and wasn't verified.
+- **OpenShift:** the same chart, with `values-openshift.yaml`. You can run a real OpenShift on your
+  own Windows, Linux or macOS machine with OpenShift Local, and [docs/openshift.md](docs/openshift.md)
+  walks through it for all three. Once you are logged in, `make openshift-deploy` builds the
+  images, installs the chart and checks the result in one go. I have checked that every image runs
+  with the random user IDs OpenShift assigns, but a real OpenShift cluster is the one thing I
+  haven't run it on yet, and the guide says exactly what was and wasn't verified.
 - **Releases:** tagged versions publish multi-architecture images and the Helm chart to GitHub's
   registry. See [docs/releasing.md](docs/releasing.md).
 

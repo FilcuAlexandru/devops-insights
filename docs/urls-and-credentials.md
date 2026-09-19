@@ -1,12 +1,14 @@
 # URLs, ports and credentials
 
-Every component that has a login uses **username `admin`, password `admin`**. This is intentional:
-DevOps Insights is a personal lab project and nothing here is secret. Do not reuse this setup
-for anything exposed to the internet.
+Everything that has a login uses **admin as the username and admin as the password**. That is a
+choice, not an oversight: this is a personal lab project with nothing secret in it, and one
+credential everywhere makes it easy to explore. It also means you should never expose a default
+installation to the internet.
 
-Every component listens on its own port. The **Platform** page of the web application shows the
-table for the environment it is running in, and `make urls-compose`, `make urls-kind` and
-`make urls-openshift` print it in the terminal.
+Each component listens on a port of its own, so nothing collides. If you ever lose track of an
+address, the **Platform** page of the web application lists the ones for the environment it runs
+in, and `make urls-compose`, `make urls-kind` and `make urls-openshift` print them in the
+terminal.
 
 ## Docker Compose
 
@@ -30,8 +32,9 @@ psql postgresql://admin:admin@localhost:5432/devops_insights
 
 ## Kubernetes (kind)
 
-Published by NodePort services and the port mappings in `deploy/kubernetes/kind/cluster.yaml`
-(or by `make k8s-forward` on a cluster without mappings).
+These are published by NodePort services together with the port mappings in
+`deploy/kubernetes/kind/cluster.yaml`, or by `make k8s-forward` on a cluster that was created without
+mappings.
 
 | Component | Address | Login |
 |---|---|---|
@@ -45,8 +48,8 @@ Published by NodePort services and the port mappings in `deploy/kubernetes/kind/
 
 ## OpenShift
 
-Routes are created by the Helm chart with the host `<component>-<project>.<apps domain>`.
-For the project `devops-insights` on OpenShift Local (`apps-crc.testing`):
+The Helm chart creates Routes named `<component>-<project>.<apps domain>`. For the project
+`devops-insights` on OpenShift Local (`apps-crc.testing`) they look like this:
 
 | Component | Address | Login |
 |---|---|---|
@@ -56,12 +59,14 @@ For the project `devops-insights` on OpenShift Local (`apps-crc.testing`):
 | Prometheus | https://prometheus-devops-insights.apps-crc.testing | admin / admin |
 | Argo CD | `oc get route openshift-gitops-server -n openshift-gitops` | see [openshift.md](openshift.md) |
 
-`make urls-openshift` prints the real hosts of the current project.
+`make urls-openshift` prints the real hosts of your current project. The guide for installing
+OpenShift Local on Windows, Linux and macOS is [openshift.md](openshift.md).
 
 ## Application API
 
-Base URL: the backend address above; through the web application the same paths are available
-under `/api`. Interactive documentation: `/api/docs`, machine-readable schema: `/api/openapi.json`.
+The base URL is the backend address above, and the same paths are also available through the web
+application. The interactive documentation is at `/api/docs`, and the machine-readable schema at
+`/api/openapi.json`.
 
 | Method and path | Purpose |
 |---|---|

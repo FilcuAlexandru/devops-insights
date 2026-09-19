@@ -1,16 +1,16 @@
-## What and why
+## What does this change, and why?
 
-<!-- What does this change do, and why is it needed? Link the issue: Closes #123 -->
+<!-- A few sentences. If it closes an issue, say so: Closes #123 -->
 
-## How it was tested
+## How did you test it?
 
 - [ ] `make check` passes
-- [ ] Tried it locally (Docker Compose or kind)
+- [ ] I tried it locally (Docker Compose or kind)
 
-## Checklist
+## Before merging
 
-- [ ] Tests added or updated
-- [ ] Documentation updated (`docs/`, `README.md`)
-- [ ] `CHANGELOG.md` updated under **Unreleased** (if user-visible)
-- [ ] Database change has a migration that works on existing data (if applicable)
+- [ ] Tests are added or updated
+- [ ] The documentation is updated (`docs/`, `README.md`)
+- [ ] `CHANGELOG.md` has an entry under **Unreleased**, if a user would notice the change
+- [ ] A database change has a migration that works on existing data
 - [ ] The title follows Conventional Commits (`feat:`, `fix:`, `docs:` ...)

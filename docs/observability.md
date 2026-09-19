@@ -1,82 +1,88 @@
 # Observability
 
-Prometheus scrapes the backend and the collector, Grafana shows a provisioned dashboard.
+Prometheus collects metrics from the backend and the collector, and Grafana shows them on a
+dashboard that is already set up. You don't need to configure anything by hand: start the stack
+and both are ready.
 
 | | Docker Compose | Kubernetes (kind) | Login |
 |---|---|---|---|
 | Prometheus | http://localhost:9090 | http://localhost:30900 | admin / admin |
 | Grafana | http://localhost:3000 | http://localhost:30300 | admin / admin |
-| Backend metrics | http://localhost:8000/metrics | in-cluster | none |
-| Collector metrics | http://localhost:9102/metrics | in-cluster | none |
+| Backend metrics | http://localhost:8000/metrics | inside the cluster | none |
+| Collector metrics | http://localhost:9102/metrics | inside the cluster | none |
 
-Prometheus is protected with basic authentication (`web.config.file`). Grafana reaches it with the
-same credentials, configured in the provisioned datasource. Nothing has to be set up by hand.
+Prometheus asks for a login (basic authentication, through `web.config.file`), so that "admin /
+admin everywhere" is true for it as well. Grafana reaches it with the same credentials, which are
+part of the provisioned datasource. Even Prometheus scraping itself needs them.
 
-## Scrape targets
+## What Prometheus scrapes
 
-| Job | Target | Source |
+| Job | Target | What it provides |
 |---|---|---|
 | `backend` | `backend:8000/metrics` | HTTP and application metrics of the API |
-| `collector` | `collector:9102/metrics` | Collection metrics of the worker |
+| `collector` | `collector:9102/metrics` | The collection metrics of the worker |
 | `prometheus` | `localhost:9090/metrics` | Prometheus itself |
 
-On Kubernetes the targets are discovered through the Services, so every replica is scraped
-individually; the `job` label is the component name in both environments, which is what the
-dashboard queries.
+On Kubernetes the targets are found through the Services, so every replica is scraped on its own.
+In both environments the `job` label is the name of the component, which is what the dashboard
+queries rely on.
 
-## Metrics
+## The metrics
 
-HTTP metrics come from `prometheus-fastapi-instrumentator` (`http_requests_total`,
-`http_request_duration_seconds`, `http_request_duration_highr_seconds`, ...). Health and metrics
-endpoints are excluded from them. Application metrics:
+The HTTP metrics come from `prometheus-fastapi-instrumentator` (`http_requests_total`,
+`http_request_duration_seconds` and friends). The health and metrics endpoints are left out of them
+on purpose. The application's own metrics are:
 
-| Metric | Type | Meaning |
+| Metric | Type | What it tells you |
 |---|---|---|
-| `devops_insights_application_info` | gauge | Name, environment and version |
+| `devops_insights_application_info` | gauge | The name, environment and version |
 | `devops_insights_repositories_collected_total` | counter | Repositories collected successfully |
 | `devops_insights_collection_errors_total` | counter | Repositories that failed to collect |
-| `devops_insights_collection_runs_total{status}` | counter | Finished runs by status |
-| `devops_insights_collection_duration_seconds` | histogram | Duration of a full run |
-| `devops_insights_collection_last_success_timestamp_seconds` | gauge | When a run last finished without failures |
+| `devops_insights_collection_runs_total{status}` | counter | Finished runs, by status |
+| `devops_insights_collection_duration_seconds` | histogram | How long a full run takes |
+| `devops_insights_collection_last_success_timestamp_seconds` | gauge | When a run last finished without any failure |
 | `devops_insights_ai_analyses_total` | counter | Analyses generated |
-| `devops_insights_ai_analysis_errors_total` | counter | Failed analyses |
-| `devops_insights_ai_analysis_duration_seconds` | histogram | Time to generate an analysis |
-| `devops_insights_database_query_duration_seconds` | histogram | Duration of each SQL statement |
+| `devops_insights_ai_analysis_errors_total` | counter | Analyses that failed |
+| `devops_insights_ai_analysis_duration_seconds` | histogram | How long an analysis takes |
+| `devops_insights_database_query_duration_seconds` | histogram | The duration of every SQL statement |
 
-Counters live in the process that increments them, so collection metrics appear on the
-`collector` job for scheduled runs and on the `backend` job for runs started with "Collect now".
-The dashboard sums both.
+A counter lives in the process that increments it. Scheduled collections therefore show up under
+the `collector` job, and the ones started with **Collect now** under the `backend` job. The
+dashboard adds the two together.
 
 ## The Grafana dashboard
 
-*Dashboards → DevOps Insights → DevOps Insights* contains: service status, collection health
-(runs, duration, errors, time since the last good run), HTTP traffic (requests by status and
-endpoint, latency p50/p95/p99, 5xx), AI analyses (count, failures, duration), and database and
-process metrics (statement duration, memory, CPU). Every panel query was checked against a running
-Prometheus.
+You find it under *Dashboards → DevOps Insights → DevOps Insights*. It shows the state of the
+services, the health of the collection (runs, duration, errors and how long ago the last good run
+was), the HTTP traffic (requests by status and by endpoint, latency at p50, p95 and p99, and 5xx
+errors), the AI analyses (how many, how many failed, how long they take), and the database and
+process metrics (statement duration, memory and CPU). I checked every panel's query against a
+running Prometheus with real data.
 
-## Where the files are
+## Where the files live
 
-| File | Purpose |
+| File | What it does |
 |---|---|
-| `monitoring/prometheus/prometheus.yml` | Scrape configuration (Docker Compose) |
-| `monitoring/prometheus/web.yml` | Basic auth users (bcrypt hash of `admin`) |
-| `monitoring/grafana/provisioning/` | Datasource and dashboard provider |
-| `monitoring/grafana/dashboards/devops-insights.json` | The dashboard |
+| `monitoring/prometheus/prometheus.yml` | What to scrape (Docker Compose) |
+| `monitoring/prometheus/web.yml` | The login, as a bcrypt hash of `admin` |
+| `monitoring/grafana/provisioning/` | The datasource and the dashboard provider |
+| `monitoring/grafana/dashboards/devops-insights.json` | The dashboard itself |
 | `deploy/helm/devops-insights/templates/prometheus/` | Prometheus on Kubernetes and OpenShift |
 | `deploy/helm/devops-insights/templates/grafana/` | Grafana on Kubernetes and OpenShift |
 
-The Helm chart needs its own copy of the dashboard (a chart can only read files inside itself).
-After editing the dashboard run `make sync-monitoring`; CI fails if the copies differ.
+A Helm chart can only read files inside its own folder, so the chart carries a copy of the
+dashboard. After you edit it, run `make sync-monitoring`. The CI fails when the two copies differ, so
+they can't drift apart without you noticing.
 
 ## Changing the password
 
 The bcrypt hash of `admin` is in `monitoring/prometheus/web.yml` and in
-`deploy/helm/devops-insights/values.yaml` (`prometheus.auth`). To use another password:
+`deploy/helm/devops-insights/values.yaml` (under `prometheus.auth`). To use a different password,
+generate a new hash:
 
 ```bash
 python3 -c "import bcrypt; print(bcrypt.hashpw(b'NEW_PASSWORD', bcrypt.gensalt()).decode())"
 ```
 
-Put the hash in both places, and update the datasource password (`basicAuthPassword`) and the
-Prometheus scrape job for itself.
+Put the hash in both places. Then update the datasource password (`basicAuthPassword`) and the job
+in which Prometheus scrapes itself.

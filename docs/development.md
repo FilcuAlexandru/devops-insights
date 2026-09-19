@@ -1,76 +1,93 @@
-# Development guide
+# Working on the code
 
-Set up with `make setup`, then see [local-testing.md](local-testing.md#b-development-mode-without-docker-for-the-code)
-for running the backend and frontend. `make help` lists every task.
+This is the guide for changing the project. Set things up with `make setup`, then follow
+[local-testing.md](local-testing.md#b-development-mode) to run the backend and the frontend.
+`make help` lists everything you can do.
 
-## Conventions
+## House rules
 
-- **Code, comments, commit messages and documentation are in English.**
-- Python: formatted and linted by Ruff (`make format`, `make lint`), line length 100, type hints
-  on function signatures, a one-line docstring on public functions and classes.
-- JavaScript: ES modules, no build step, 4-space indent. Text from the API or GitHub is only ever
-  inserted through the `html` tagged template (`core/html.js`), never with string concatenation.
-- Every new behaviour comes with a test. Tests never call GitHub or Ollama: they use fakes,
+A few habits keep the project easy to live with:
+
+- Code, comments, commit messages and documentation are written in English.
+- Python is formatted and linted by Ruff (`make format`, `make lint`), with a line length of 100.
+  Functions have type hints, and public functions and classes get a one-line docstring.
+- JavaScript uses ES modules, four spaces of indentation and no build step. Text that comes from
+  the API or from GitHub goes into the page only through the `html` tagged template in
+  `core/html.js`, never through string concatenation. That single rule is what keeps the interface
+  safe.
+- Every new behaviour comes with a test. Tests never call GitHub or Ollama; they use fakes,
   `httpx.MockTransport` and `monkeypatch`.
-- Layering: `api` → `services`/`analytics`/`ai` → `models`/`schemas` → `core`. `analytics/trends.py`
-  stays free of database access so it can be tested without a database.
+- Layers only depend downwards: `api` calls `services`, `analytics` and `ai`, which use `models`
+  and `schemas`, which sit on `core`. `analytics/trends.py` has no database code, so you can test
+  it without a database.
 
-## Track another technology or repository
+## Tracking another technology or repository
 
-Edit `backend/src/devops_insights/catalog/technologies.py` and add a `TechnologyDefinition`, or add
-`"owner/name"` to an existing entry's `repositories`. The tests check that slugs and repositories
-are unique and well formed. The next collection creates the technology and the repository; restart
-nothing. Remember that one collection uses one GitHub request per repository.
+Open `backend/src/devops_insights/catalog/technologies.py` and either add a new
+`TechnologyDefinition`, or add an `"owner/name"` to the `repositories` of an existing one. The
+tests check that slugs and repositories are unique and well formed. The next collection creates
+the technology and the repository, and nothing needs restarting. Remember that one collection
+costs one GitHub request per repository.
 
-## Add an API endpoint
+## Adding an API endpoint
 
-1. Put the query or use case in `services/` (or `analytics/` if it is a pure calculation).
+1. Write the query or the use case in `services/`, or in `analytics/` if it is a pure
+   calculation.
 2. Add or extend a Pydantic schema in `schemas/`.
-3. Add the route to a module in `api/routes/` (or a new module registered in `api/app.py`). Keep it
-   thin: parse, call, return.
-4. Add tests in `backend/tests/test_api_*.py` (use the `client` and `session` fixtures) and a test
-   for the service.
-5. Document it in `docs/urls-and-credentials.md`.
+3. Add the route to a module in `api/routes/` (or create a module and register it in
+   `api/app.py`). Keep the route thin: read the request, call the service, return the result.
+4. Write tests: one for the service, and one in `backend/tests/test_api_*.py` for the route, using
+   the `client` and `session` fixtures.
+5. Add it to the table in [urls-and-credentials.md](urls-and-credentials.md).
 
-## Change the database
+## Changing the database
+
+Let Alembic write the first draft:
 
 ```bash
 cd backend
-../backend/.venv/bin/alembic revision --autogenerate -m "describe the change"
+alembic revision --autogenerate -m "describe the change"
 ```
 
-Review the generated file in `migrations/versions/`, then `make migrate`. `alembic check` (part of
-CI) fails when the models and migrations disagree. Migrations must keep working for databases that
-already hold data: give new `NOT NULL` columns a `server_default`, and backfill.
+Read the generated file in `migrations/versions/` carefully, then apply it with `make migrate`.
+CI runs `alembic check` and fails when the models and the migrations disagree. A migration must
+work on a database that already holds data: give new `NOT NULL` columns a `server_default`, and
+backfill where it makes sense.
 
-## Add a page to the frontend
+## Adding a page to the frontend
 
-1. Create `frontend/public/assets/js/pages/<name>.js` exporting
-   `render({ params, query })` that returns `{ title, content, mount? }`.
-2. Register it in `frontend/public/assets/js/main.js` (`routes`) and, if it belongs in the menu,
-   in `frontend/public/index.html`.
-3. Shared building blocks are in `components/` (`ui.js`, `charts.js`, `collection.js`, ...).
-4. Add unit tests for pure logic in `frontend/tests/` (`make test-frontend`).
+1. Create `frontend/public/assets/js/pages/<name>.js` that exports `render({ params, query })` and
+   returns `{ title, content, mount? }`.
+2. Register it in `frontend/public/assets/js/main.js` (in `routes`) and, if it belongs in the
+   menu, in `frontend/public/index.html`.
+3. Reuse what is in `components/` (`ui.js`, `charts.js`, `collection.js` and so on).
+4. Test the pure logic in `frontend/tests/` with `make test-frontend`.
 
-## Change the Grafana dashboard
+## Changing the Grafana dashboard
 
-Edit `monitoring/grafana/dashboards/devops-insights.json` (you can build it in the Grafana UI and
-export it), then run `make sync-monitoring` to copy it into the Helm chart.
+Edit `monitoring/grafana/dashboards/devops-insights.json`. A good way is to build the panels in the
+Grafana interface and export the JSON. Then run `make sync-monitoring` so the Helm chart gets the
+same copy.
 
-## Change the Helm chart
+## Changing the Helm chart
 
-`make helm-lint` lints the chart and renders it for kind and OpenShift. To check what a change
-produces: `helm template devops-insights deploy/helm/devops-insights -f deploy/helm/devops-insights/values-kind.yaml`.
+`make helm-lint` lints the chart and renders it for kind and for OpenShift. To see exactly what a
+change produces:
 
-## Releasing a new version
+```bash
+helm template devops-insights deploy/helm/devops-insights -f deploy/helm/devops-insights/values-kind.yaml
+```
 
-`scripts/version.sh set X.Y.Z` writes the version into every file that carries it, and
-`scripts/version.sh check` verifies them (CI runs it). The full procedure, including the tag that
-publishes the images, is in [releasing.md](releasing.md).
+## New versions
+
+The version number has to be the same in several places, so don't edit it by hand:
+`scripts/version.sh set X.Y.Z` writes it into every one of them, and `scripts/version.sh check`
+verifies them (the CI does that too). The whole procedure, including the tag that publishes the
+images, is in [releasing.md](releasing.md).
 
 ## Continuous integration
 
-`.github/workflows/ci.yml` runs on every push and pull request: Ruff, migrations, `alembic check`
-and pytest against PostgreSQL; the frontend tests; the version, Helm and monitoring checks; the
-image builds. Pushes to `main` publish development images. `security.yml` runs CodeQL and Trivy,
-and `release.yml` publishes tagged releases.
+Every push and pull request runs `.github/workflows/ci.yml`: Ruff, the migrations, `alembic check`
+and pytest against a real PostgreSQL, the frontend tests, the version, Helm and monitoring checks,
+and the image builds. Pushes to `main` publish development images. `security.yml` runs CodeQL and
+Trivy, and `release.yml` publishes tagged releases.

@@ -1,20 +1,36 @@
 # OpenShift
 
-The same Helm chart deploys to OpenShift. `values-openshift.yaml` turns on Routes and removes every
-fixed user ID, so the `restricted-v2` SecurityContextConstraint can assign its own.
+Getting this project onto OpenShift was one of the goals from the start, so the Helm chart is
+built for it rather than adapted afterwards. The same chart that runs on a plain Kubernetes
+cluster runs on OpenShift; `values-openshift.yaml` only switches a few things: Routes instead of
+NodePorts, images built inside the cluster, and no fixed user IDs.
 
-## What was verified, and what was not
+That last point is the one that matters. OpenShift refuses to start a container as a user of its
+own choosing and instead assigns a random high user ID that always belongs to group 0. Many
+images break when that happens (the official PostgreSQL image is the classic example). Every
+image used here works with an arbitrary user ID, and the chart never asks for a specific one.
 
-| Check | Result |
+This guide shows how to get a real OpenShift on your own computer (Windows, Linux or macOS),
+deploy the project onto it, and check that everything works.
+
+## What has been tested and what hasn't
+
+I would rather tell you this up front than have you find out halfway through.
+
+| What | Status |
 |---|---|
-| `helm lint` and `helm template` with `values-openshift.yaml` | passed |
-| Manifests validated with kubeconform | passed (Route objects have no public schema and are skipped) |
-| All seven workloads started with a **random user ID (1000680000) and group 0**, the way `restricted-v2` starts containers, on a kind cluster (`deploy/openshift/arbitrary-uid-test.yaml`) | passed: migration, collection, Prometheus, Grafana and the Ollama model download all worked |
-| `scripts/openshift-deploy.sh` logic with a simulated `oc` and a real `helm template` | passed: right order of commands, right image paths, route hosts and switches |
-| `scripts/smoke-test.sh` against Docker Compose and Kubernetes | passed, and it fails correctly when a component is down |
-| Route creation, TLS, BuildConfig builds, the internal registry, SCC admission on a real OpenShift | **not run yet**. Installing a real cluster needs a free Red Hat account (for the pull secret) and your macOS administrator password, which I cannot provide. The steps below get you there, and one command runs the whole check |
+| `helm lint` and `helm template` with `values-openshift.yaml` | Passed |
+| Manifests checked with kubeconform | Passed (Route objects have no public schema, so they are skipped) |
+| All seven workloads started with a random user ID (`1000680000`) and group 0, the way OpenShift's `restricted-v2` policy starts containers, on a kind cluster | Passed: migrations, collection, Prometheus, Grafana and the Ollama model download all worked |
+| `scripts/openshift-deploy.sh` with a simulated `oc` and a real `helm template` | Passed: right order of commands, right image paths, right route hosts |
+| `scripts/smoke-test.sh` against Docker Compose and Kubernetes | Passed, and it fails correctly when a component is down |
+| Routes, TLS, image builds inside the cluster, the internal registry, on a real OpenShift | **Not run yet** |
 
-You can repeat the arbitrary-user-ID check without OpenShift:
+The last row is the honest gap. Installing a real cluster needs a Red Hat account (for the pull
+secret) and administrator rights on the machine, which are yours to give and not mine. The steps
+below get you there, and one command then does the whole deployment and the checking.
+
+You can repeat the random-user-ID test on any Kubernetes cluster, no OpenShift required:
 
 ```bash
 make kind-load
@@ -23,24 +39,105 @@ helm install uid-test deploy/helm/devops-insights \
   -f deploy/openshift/arbitrary-uid-test.yaml -n uid-test --create-namespace
 ```
 
-## Choose a cluster
+## Choosing a cluster
 
-| Cluster | Notes |
-|---|---|
-| **OpenShift Local** (CRC) | Free, runs on your machine. Needs about 4 CPUs, 10 GB memory and 35 GB disk on top of Docker Desktop. Apps domain: `apps-crc.testing`. https://developers.redhat.com/products/openshift-local |
-| **Developer Sandbox** | Free, hosted by Red Hat, no installation. Its quota (about 7 GiB memory, 15 GiB storage) is just enough for this chart; use `--set ollama.enabled=false` if it does not fit. No cluster-admin rights, which is fine because the chart only creates namespaced objects. https://developers.redhat.com/developer-sandbox |
-| Any OpenShift 4.x | Works the same way |
+| Option | Good for | Things to know |
+|---|---|---|
+| **OpenShift Local** (also called CRC), `openshift` preset | Real OpenShift on your own machine, Windows, Linux and macOS (including Apple silicon) | Free, but needs a Red Hat account for the pull secret |
+| **OpenShift Local**, `okd` preset | The same, without any Red Hat account | The community version of OpenShift. Not available on Apple silicon Macs |
+| **Red Hat Developer Sandbox** | Nothing to install | Free and hosted, but its quota is small (check the current limits) and you get no cluster-admin rights. Disable the AI runtime with `OLLAMA=false` if it doesn't fit |
+| A full OpenShift 4 cluster | Work or team environments | Works the same way as below |
 
-## OpenShift Local (CRC) on a Mac, step by step
+OpenShift Local runs the whole cluster as a single virtual machine on your computer. It needs
+**4 physical CPU cores, 10.5 GB of free memory and 35 GB of disk** at the very least, and it
+cannot run inside another virtual machine (no nested virtualisation). This project plus the AI
+model wants a bit more, so give it around 14 GB if you can, and close Docker Desktop while it
+runs. A machine with 16 GB of RAM is tight; 32 GB is comfortable.
 
-This is the way to get a real OpenShift on your own machine. It needs about 14 GB of memory for
-the cluster, so on an 18 GB Mac **quit Docker Desktop while it runs**.
+## Installing OpenShift Local
 
-1. **Get the installer and the pull secret** (free). Sign in, or create a Red Hat account, at
-   https://console.redhat.com/openshift/create/local and download *OpenShift Local* for macOS and
-   copy the **pull secret**.
-2. **Install it.** Open the downloaded `.pkg` (macOS asks for your administrator password).
-3. **Size the VM** (once):
+The details follow Red Hat's own documentation (https://crc.dev/docs/installing/). One rule
+applies everywhere: **run `crc` as your normal user, never as root or as an administrator.** It
+asks for elevated rights itself when it needs them. Also turn off any VPN before starting.
+
+### Get the download and the pull secret
+
+1. Go to https://console.redhat.com/openshift/create/local and sign in, or create a free
+   account.
+2. Download OpenShift Local for your operating system.
+3. On the same page, copy (or download) your **pull secret**. You paste it when `crc start`
+   asks for it. Only the `openshift` preset needs one; with the `okd` preset you can skip this
+   step and the account entirely.
+
+### macOS
+
+You need macOS 15 (Sequoia) or newer. Apple silicon and Intel Macs are both supported.
+
+1. Open the downloaded `.pkg` and follow the installer. It asks for your macOS password.
+2. Open a new Terminal window and check that it worked:
+
+```bash
+crc version
+```
+
+### Linux
+
+Red Hat's supported systems are RHEL, CentOS and Fedora. Ubuntu and Debian are not officially
+supported: they usually work, but expect to do some set-up by hand.
+
+1. Install the two things `crc` depends on.
+
+   On Fedora, CentOS or RHEL:
+
+```bash
+sudo dnf install libvirt NetworkManager
+```
+
+   On Ubuntu or Debian:
+
+```bash
+sudo apt install qemu-kvm libvirt-daemon libvirt-daemon-system network-manager
+```
+
+2. Unpack the download and put `crc` somewhere on your `PATH`:
+
+```bash
+cd ~/Downloads && tar xvf crc-linux-amd64.tar.xz
+```
+
+```bash
+mkdir -p ~/bin && cp ~/Downloads/crc-linux-*-amd64/crc ~/bin
+```
+
+```bash
+echo 'export PATH=$PATH:$HOME/bin' >> ~/.bashrc && export PATH=$PATH:$HOME/bin
+```
+
+3. Check it:
+
+```bash
+crc version
+```
+
+### Windows
+
+You need a fully updated **Windows 11**. Windows 10 and the **Home** edition are not supported.
+
+1. Extract the download and run the guided installer. **Install it on your `C:` drive**; CRC does
+   not work from a network drive.
+2. Sign out and back in afterwards, so your account picks up the permissions the installer set
+   up.
+3. Open **PowerShell** as your normal user (not "Run as administrator") and check:
+
+```powershell
+crc version
+```
+
+### Prepare the machine, start the cluster
+
+These commands are the same everywhere (in PowerShell on Windows). Start by sizing the virtual
+machine. The values are the minimum defaults or higher, and they have to be set while the cluster
+is stopped:
 
 ```bash
 crc config set memory 14336
@@ -54,154 +151,232 @@ crc config set cpus 6
 crc config set disk-size 60
 ```
 
-4. **Prepare the machine** (asks for your password, it sets up a DNS resolver):
+If you want the OKD preset (no Red Hat account, not on Apple silicon), select it now:
+
+```bash
+crc config set preset okd
+```
+
+Then prepare the machine. This is the step that asks for your macOS or Linux password, or shows
+a Windows administrator prompt, because it configures networking and the hypervisor:
 
 ```bash
 crc setup
 ```
 
-5. **Start the cluster.** The first start downloads about 4 GB and takes 10 to 20 minutes. When it
-   asks, paste the pull secret. At the end it prints the console URL and the `kubeadmin` password:
+Finally start the cluster. The first start downloads roughly 4 GB and takes 10 to 20 minutes. When
+it asks for the pull secret, paste it (not needed for OKD). At the end it prints the console
+address and the login for the `kubeadmin` account:
 
 ```bash
 crc start
 ```
 
-6. **Put `oc` in your shell and log in** (`developer` / `developer` is a regular user and is
-   enough for this project):
+Add the bundled `oc` command to your shell. On macOS and Linux:
 
 ```bash
 eval $(crc oc-env)
 ```
 
+On Windows PowerShell:
+
+```powershell
+crc oc-env | Invoke-Expression
+```
+
+Then log in as the ordinary `developer` user, which is all this project needs:
+
 ```bash
 oc login -u developer -p developer https://api.crc.testing:6443
 ```
 
-7. **Deploy and verify, in one command.** The first time, skip the AI to keep memory low:
+If you lose the credentials later, `crc console --credentials` prints them again.
+
+## Deploying the project
+
+You also need [Helm](https://helm.sh/docs/intro/install/) on your machine. On macOS,
+`brew install helm`; on Windows, `winget install Helm.Helm`; on Linux, your package manager or the
+installer from the Helm website.
+
+From the repository, one command builds both images inside the cluster, installs the chart with
+your cluster's domain, waits for everything to start and runs the smoke test against the Routes.
+The first time, leave the AI runtime out to keep memory low:
 
 ```bash
 OLLAMA=false make openshift-deploy
 ```
 
-It creates the project, builds both images inside the cluster, installs the chart with the right
-domain, waits for every workload and runs the smoke test against the Routes. A green
-`All checks passed.` means the deployment works on OpenShift. Then add the AI runtime (needs about
-4 GiB more): `make openshift-deploy` (use `SKIP_BUILD=1` to reuse the images).
-
-8. **Look at it in a browser:** `make urls-openshift` prints the Routes. The login for Grafana and
-   Prometheus is admin / admin.
-9. **Afterwards:** `crc stop` pauses the cluster, `crc delete` removes it.
-
-If any step fails, send me the message, the script prints what it was doing.
-
-The details of each step, and the manual version of the deployment, follow.
-
-## Deploy
+A final `All checks passed.` means the project works on OpenShift. To add the AI runtime later
+(it needs about 4 GiB more memory), run it again without the switch; `SKIP_BUILD=1` reuses the
+images you already built:
 
 ```bash
-# 1. Log in and create the project (the login command comes from the console: "Copy login command")
-oc login ...
+SKIP_BUILD=1 make openshift-deploy
+```
+
+`make openshift-deploy` prints the addresses when it finishes, and you can print them again with
+`make urls-openshift`. Grafana and Prometheus use the usual **admin / admin**.
+
+### On Windows
+
+There is no `make` on Windows by default, and the scripts are written for a Unix shell. The
+easiest way is **Git Bash**, which comes with Git for Windows. Open it, make sure `oc` and `helm`
+are available (`crc oc-env` prepares `oc`, see above), and run the script directly:
+
+```bash
+OLLAMA=false sh scripts/openshift-deploy.sh
+```
+
+I could not try the Windows and Linux routes myself (my machine is a Mac), so they follow Red
+Hat's documentation and the commands are the ones the project uses everywhere else. If something
+needs adjusting on your system, please open an issue with the output.
+
+### Doing it by hand
+
+`scripts/openshift-deploy.sh` is only these steps in a row, so you can run them yourself to see
+what happens.
+
+Create a project and build the two images inside the cluster:
+
+```bash
 oc new-project devops-insights
+```
 
-# 2. Build both images inside the cluster (no external registry needed)
+```bash
 oc apply -f deploy/openshift/build.yaml
-oc start-build devops-insights-backend  --from-dir=backend  --follow
+```
+
+```bash
+oc start-build devops-insights-backend --from-dir=backend --follow
+```
+
+```bash
 oc start-build devops-insights-frontend --from-dir=frontend --follow
+```
 
-# 3. Find the cluster's apps domain (the part after "console-openshift-console.")
+Work out your cluster's domain from the console address (the part after
+`console-openshift-console.`):
+
+```bash
 DOMAIN=$(oc whoami --show-console | sed -E 's#https://console-openshift-console\.##')
-echo "$DOMAIN"
+```
 
-# 4. Install
+Install the chart:
+
+```bash
 helm upgrade --install devops-insights deploy/helm/devops-insights \
   -f deploy/helm/devops-insights/values-openshift.yaml \
   --set route.appsDomain="$DOMAIN" \
   --namespace devops-insights --wait --timeout 15m
+```
 
-# 5. Addresses and automated check
-make urls-openshift
+Then check it from the outside:
+
+```bash
 INSECURE=1 FRONTEND_URL=https://frontend-devops-insights.$DOMAIN scripts/smoke-test.sh
 ```
 
-`scripts/openshift-deploy.sh` (`make openshift-deploy`) does steps 1 to 5 for you.
-
 The images are referenced as `image-registry.openshift-image-registry.svc:5000/devops-insights/...`.
-If your project is not called `devops-insights`, pass
+If your project has another name, add
 `--set backend.image.repository=image-registry.openshift-image-registry.svc:5000/<project>/devops-insights-backend`
-and the same for `frontend.image.repository`.
+and the same for `frontend.image.repository`. (`openshift-deploy.sh` does this for you when you set
+`PROJECT`.)
 
-Instead of building in the cluster you can use images published by the CI workflow:
-`--set backend.image.repository=ghcr.io/<owner>/devops-insights-backend` (and `frontend`), with a
-public package.
+You can also skip the local build and use the images that the release pipeline publishes, once
+they are public: set `backend.image.repository` to `ghcr.io/<owner>/devops-insights-backend` and
+`frontend.image.repository` to `ghcr.io/<owner>/devops-insights-frontend`.
 
-### Routes and logins
+## What you get
 
-| Component | Route | Login |
+| Component | Address | Login |
 |---|---|---|
 | Web application | `https://frontend-<project>.<domain>` | none |
 | Backend API | `https://backend-<project>.<domain>/api/docs` | none |
 | Grafana | `https://grafana-<project>.<domain>` | admin / admin |
 | Prometheus | `https://prometheus-<project>.<domain>` | admin / admin |
 
-PostgreSQL and Ollama stay inside the cluster. To use the database from your machine:
-`oc port-forward svc/devops-insights-postgresql 5432:5432`, then
-`psql postgresql://admin:admin@localhost:5432/devops_insights`.
-
-The first start takes several minutes: PostgreSQL, Grafana and Ollama images are pulled, then
-Ollama downloads the model. Follow it with `oc get pods -w`.
-
-### Verify
+PostgreSQL and Ollama stay inside the cluster. To reach the database from your computer, forward
+the port and connect as usual:
 
 ```bash
-oc get pods                                  # all Running, 1/1
-oc get routes
-curl -k https://frontend-devops-insights.$DOMAIN/healthz
+oc port-forward svc/devops-insights-postgresql 5432:5432
 ```
 
-Then work through [local-testing.md](local-testing.md#3-verify-each-component) using the route
-addresses.
+Then `psql postgresql://admin:admin@localhost:5432/devops_insights` in another window.
 
 ## Argo CD on OpenShift
 
-OpenShift's Argo CD comes from the **Red Hat OpenShift GitOps** operator (install it from
-OperatorHub). It lives in the `openshift-gitops` namespace and is exposed as a route:
+On OpenShift, Argo CD comes from the **Red Hat OpenShift GitOps** operator, which you install
+from OperatorHub in the web console. It runs in the `openshift-gitops` namespace and is exposed
+through a Route:
 
 ```bash
 oc get route openshift-gitops-server -n openshift-gitops -o jsonpath='https://{.spec.host}{"\n"}'
 ```
 
-The operator generates the `admin` password; read it with
-`oc get secret openshift-gitops-cluster -n openshift-gitops -o jsonpath='{.data.admin\.password}' | base64 -d`.
-Unlike on kind, **this password cannot be forced to `admin`**: the operator owns the secret and
-would overwrite it. Everything else in the platform uses `admin / admin`.
+The operator generates the `admin` password and keeps ownership of it, so unlike on kind this
+one **cannot be set to `admin`**. Read it with:
 
-To let this Argo CD deploy into your project and create the application:
+```bash
+oc get secret openshift-gitops-cluster -n openshift-gitops -o jsonpath='{.data.admin\.password}' | base64 -d
+```
+
+Everything else in the project keeps `admin / admin`. To let this Argo CD deploy into your
+project and create the application (put your cluster's domain in the file first):
 
 ```bash
 oc label namespace devops-insights argocd.argoproj.io/managed-by=openshift-gitops
-oc apply -f deploy/argocd/application-openshift.yaml    # set route.appsDomain in it first
 ```
 
-The repository must be on GitHub, because Argo CD pulls from Git.
+```bash
+oc apply -f deploy/argocd/application-openshift.yaml
+```
+
+Argo CD reads from GitHub, so the repository has to be pushed first.
 
 ## How the chart adapts to OpenShift
 
-| Concern | Handling |
+| Concern | What the chart does |
 |---|---|
-| Random user ID | No `runAsUser` or `fsGroup` in `values-openshift.yaml`. Every image runs as any user in group 0 |
-| Images that run as root by default | Ollama is started as a non-root user; PostgreSQL uses Red Hat's `sclorg` image instead of the upstream one |
-| Non-numeric image user (Prometheus) | The fixed `runAsUser` of plain Kubernetes is removed; the SCC injects one |
-| Exposure | `Route` objects with edge TLS and HTTP to HTTPS redirect, hosts `<component>-<project>.<apps domain>` |
-| RBAC | Prometheus service discovery uses a namespaced `Role`, no `ClusterRole` |
+| Random user IDs | `values-openshift.yaml` sets no `runAsUser` or `fsGroup`, and every image runs as any user in group 0 |
+| Images that insist on root | Ollama runs as a non-root user, and PostgreSQL is Red Hat's `sclorg` image instead of the upstream one |
+| Images with a non-numeric user (Prometheus) | The fixed user ID used on plain Kubernetes is removed; OpenShift injects one |
+| Exposure | Routes with edge TLS and an HTTP to HTTPS redirect, named `<component>-<project>.<apps domain>` |
+| Permissions | Prometheus finds its targets with a namespaced `Role`, no cluster-wide rights needed |
 | Storage | PersistentVolumeClaims with the cluster's default storage class |
-| Capabilities and privilege escalation | All capabilities dropped, escalation forbidden, seccomp `RuntimeDefault` |
+| Hardening | All capabilities dropped, no privilege escalation, seccomp `RuntimeDefault` |
 
-## Troubleshooting
+## When something goes wrong
 
-| Symptom | Fix |
+| What you see | What to try |
 |---|---|
-| Pods stuck in `ImagePullBackOff` for backend or frontend | The builds have not finished or the project name differs: `oc get builds`, `oc get imagestreams` |
-| `Error: ... forbidden: unable to validate against any security context constraint` | An image needs a fixed user ID. Check that you used `values-openshift.yaml` |
-| Grafana or Prometheus link is empty on the Platform page | `route.appsDomain` was not set: rerun step 4 with `--set route.appsDomain=...` |
-| Ollama pod `OOMKilled` | The Sandbox limit is too low: `--set ollama.enabled=false` |
+| `crc setup` complains about virtualisation | Enable virtualisation in the BIOS/UEFI. CRC cannot run inside another virtual machine |
+| `crc start` fails on DNS or networking | Turn off your VPN and try again; on Linux make sure `NetworkManager` is running |
+| `ImagePullBackOff` on the backend or frontend | The builds are not finished or the project has another name: check `oc get builds` and `oc get imagestreams` |
+| `unable to validate against any security context constraint` | An image needs a fixed user ID. Check that you installed with `values-openshift.yaml` |
+| The Grafana or Prometheus link is empty on the Platform page | `route.appsDomain` wasn't set. Run the install again with `--set route.appsDomain=...` |
+| The Ollama pod is `OOMKilled` | The cluster doesn't have enough memory. Give CRC more, or install with `OLLAMA=false` |
+
+## Cleaning up
+
+Pause the cluster and keep everything:
+
+```bash
+crc stop
+```
+
+Delete the cluster completely:
+
+```bash
+crc delete
+```
+
+Or only remove this project and keep the cluster:
+
+```bash
+helm uninstall devops-insights -n devops-insights
+```
+
+```bash
+oc delete project devops-insights
+```
