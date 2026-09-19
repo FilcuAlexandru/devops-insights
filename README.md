@@ -1,4 +1,4 @@
-# DevOps Insights
+# devops-insights
 
 **Collect. Analyze. Understand the DevOps ecosystem.**
 
@@ -211,5 +211,4 @@ MIT, see [LICENSE](LICENSE).
 
 ## Author
 
-Alexandru Filcu, DevOps / infrastructure engineer, working mostly with Linux, automation,
-Python, Kubernetes and GitOps.
+Filcu Alexandru
