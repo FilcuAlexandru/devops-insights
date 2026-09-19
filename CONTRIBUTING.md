@@ -15,6 +15,8 @@ To find your way around the code (and to add a technology, an endpoint or a page
 3. Open a pull request. It needs a green CI, and it is merged with **squash and merge**.
 
 `main` is protected. Nothing is pushed to it directly; everything goes through a pull request.
+[docs/git-workflow.md](docs/git-workflow.md) explains the checks, the rules and what to do when
+something fails.
 
 ## Commit messages and pull request titles
 

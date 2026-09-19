@@ -38,6 +38,21 @@ It is a personal lab project. It is also meant to be run for real: everything is
 has health checks and metrics, and the same code runs on Docker Compose, on Kubernetes with
 Argo CD, and on OpenShift.
 
+## Why this project exists
+
+This project started as a way to learn. I wanted to understand AI by building something with it,
+not only by reading about it, and to go deeper into the DevOps tools I use or want to use: containers,
+Kubernetes, Helm, GitOps with Argo CD, OpenShift, and monitoring with Prometheus and Grafana. A
+single application that needs all of them, and that also has to talk to a language model, turned
+out to be a good excuse to learn how they fit together, and where they don't.
+
+The AI part is deliberately small and strict: the code calculates, the model only explains.
+
+If it turns out to be useful to other people, I would like to grow it into a learning environment for
+anyone who wants to learn the same things: something you can clone, run with one command, take
+apart, break and put back together, with guides that explain what is happening and why. That is
+also why the documentation is written the way it is, and why every login is `admin / admin`.
+
 ## What you get
 
 - **A dashboard** with totals, stars per technology, main languages, the most popular
@@ -198,11 +213,13 @@ project blogs. None of these exist yet.
 | [OpenShift](docs/openshift.md) | Deploying on OpenShift |
 | [Observability](docs/observability.md) | Metrics, Prometheus, Grafana |
 | [Development](docs/development.md) | Working on the code |
+| [Git workflow](docs/git-workflow.md) | Branches, pull requests, checks and the rules that protect `main` |
 | [Releasing](docs/releasing.md) | Repository setup and cutting a release |
 
 ## Contributing
 
-Issues and pull requests are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) explains the workflow
+Issues and pull requests are welcome, and so are questions from people who are just starting to
+learn these tools: if something in the guides is unclear, that is a bug in the guides. [CONTRIBUTING.md](CONTRIBUTING.md) explains the workflow
 and the commit style, and [CHANGELOG.md](CHANGELOG.md) lists what changed in each version.
 
 ## License

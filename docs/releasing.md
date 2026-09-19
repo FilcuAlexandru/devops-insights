@@ -1,6 +1,7 @@
 # Releasing
 
-A release is made from `main` by pushing a version tag. After that, the pipeline does the rest:
+A release is made from `main` by pushing a version tag. (How changes get onto `main` in the first
+place is described in [git-workflow.md](git-workflow.md).) After that, the pipeline does the rest:
 tests, images, the Helm chart and the GitHub Release page.
 
 ## Setting up the repository (once)
