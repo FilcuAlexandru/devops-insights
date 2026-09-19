@@ -162,7 +162,7 @@ services:
       start_period: 10s
 
   grafana:
-    image: grafana/grafana:12.1.1
+    image: grafana/grafana:12.4.11
     container_name: devops-insights-grafana
     restart: unless-stopped
     environment:
