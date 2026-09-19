@@ -133,7 +133,7 @@ services:
       retries: 6
 
   prometheus:
-    image: prom/prometheus:v3.8.0
+    image: prom/prometheus:v3.14.0
     container_name: devops-insights-prometheus
     restart: unless-stopped
     command:
