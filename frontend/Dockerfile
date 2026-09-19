@@ -1,4 +1,4 @@
-FROM nginxinc/nginx-unprivileged:1.29-alpine
+FROM nginxinc/nginx-unprivileged:1.31-alpine
 
 # nginx-unprivileged listens on 8080 and runs as a non-root user, which is also what
 # OpenShift requires (it assigns an arbitrary UID in group 0).
