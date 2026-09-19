@@ -1,0 +1,109 @@
+{{- if .Values.ollama.enabled }}
+{{- $component := dict "root" . "component" "ollama" -}}
+{{- if .Values.ollama.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "di.service" $component }}
+  labels:
+    {{- include "di.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ollama
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- with .Values.ollama.persistence.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.ollama.persistence.size }}
+---
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "di.service" $component }}
+  labels:
+    {{- include "di.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ollama
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "di.selector" $component | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "di.selector" $component | nindent 8 }}
+    spec:
+      securityContext:
+        {{- toYaml .Values.ollama.podSecurityContext | nindent 8 }}
+      containers:
+        - name: ollama
+          image: {{ include "di.image" (dict "root" . "image" .Values.ollama.image) }}
+          imagePullPolicy: {{ .Values.ollama.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          # Start the server, then download the model in the background of this container.
+          command: [sh, -c]
+          args:
+            - |
+              ollama serve &
+              server=$!
+              until ollama list >/dev/null 2>&1; do sleep 1; done
+              ollama pull "$OLLAMA_MODEL"
+              wait "$server"
+          ports:
+            - name: http
+              containerPort: 11434
+          env:
+            - name: OLLAMA_HOST
+              value: 0.0.0.0:11434
+            - name: OLLAMA_MODELS
+              value: /models
+            # Any user ID must be able to write here (OpenShift assigns a random one).
+            - name: HOME
+              value: /tmp
+            - name: OLLAMA_MODEL
+              value: {{ .Values.ollama.model | quote }}
+          readinessProbe:
+            httpGet: { path: /, port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /, port: http }
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          volumeMounts:
+            - name: models
+              mountPath: /models
+          resources:
+            {{- toYaml .Values.ollama.resources | nindent 12 }}
+      volumes:
+        - name: models
+          {{- if .Values.ollama.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "di.service" $component }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "di.service" $component }}
+  labels:
+    {{- include "di.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ollama
+spec:
+  type: {{ .Values.ollama.service.type }}
+  selector:
+    {{- include "di.selector" $component | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.ollama.service.port }}
+      targetPort: http
+      {{- with .Values.ollama.service.nodePort }}
+      nodePort: {{ . }}
+      {{- end }}
+{{- end }}

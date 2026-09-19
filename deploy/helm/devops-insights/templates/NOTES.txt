@@ -1,0 +1,27 @@
+DevOps Insights {{ .Chart.AppVersion }} is being deployed to namespace "{{ .Release.Namespace }}".
+Wait until every pod is ready:
+
+  kubectl get pods -n {{ .Release.Namespace }} -w
+
+{{- $frontend := include "di.link" (dict "root" . "key" "frontend" "component" "frontend") }}
+{{- if .Values.route.enabled }}
+
+Routes (OpenShift):
+
+  oc get routes -n {{ .Release.Namespace }}
+{{- end }}
+
+Addresses (every login is admin / admin):
+
+  Web application : {{ if .Values.frontend.service.nodePort }}http://localhost:{{ .Values.frontend.service.nodePort }}{{ else if .Values.route.enabled }}https://frontend-{{ .Release.Namespace }}.{{ .Values.route.appsDomain }}{{ else }}kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "di.service" (dict "root" . "component" "frontend") }} 8080:{{ .Values.frontend.service.port }}   ->  http://localhost:8080{{ end }}
+  API docs        : {{ include "di.link" (dict "root" . "key" "apiDocs" "component" "backend") | default "reachable through the web application at /api/docs" }}
+  Grafana         : {{ include "di.link" (dict "root" . "key" "grafana" "component" "grafana") | default "not exposed (use kubectl port-forward)" }}
+  Prometheus      : {{ include "di.link" (dict "root" . "key" "prometheus" "component" "prometheus") | default "not exposed (use kubectl port-forward)" }}
+{{- if .Values.postgresql.enabled }}
+  PostgreSQL      : {{ include "di.link" (dict "root" . "key" "postgres" "component" "") | default "in-cluster only" }}  (user {{ .Values.postgresql.auth.username }}, database {{ .Values.postgresql.auth.database }})
+{{- end }}
+{{- if .Values.ollama.enabled }}
+
+The AI model "{{ .Values.ollama.model }}" is downloaded by the ollama pod on first start.
+Follow it with:  kubectl logs -n {{ .Release.Namespace }} deploy/{{ include "di.service" (dict "root" . "component" "ollama") }} -f
+{{- end }}

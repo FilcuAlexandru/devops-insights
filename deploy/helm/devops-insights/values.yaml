@@ -1,0 +1,189 @@
+# Default values. Environment specific overrides live in values-kind.yaml and
+# values-openshift.yaml. Every login in this chart is admin / admin (personal lab project).
+
+# Name shown on the "Platform" page of the web application.
+environmentName: Kubernetes
+
+# Addresses shown on the "Platform" page and printed by `helm install`.
+# Leave empty to hide a component. Environment values files fill these in.
+links:
+  apiDocs: ""
+  grafana: ""
+  prometheus: ""
+  argocd: ""
+  ollama: ""
+  postgres: ""
+
+# Security defaults that work on Kubernetes and on OpenShift's restricted-v2 SCC:
+# no fixed user IDs here (OpenShift assigns them), no privilege escalation, no capabilities.
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: [ALL]
+
+backend:
+  replicas: 1
+  image:
+    repository: ghcr.io/filcualexandru/devops-insights-backend
+    tag: ""            # defaults to the chart appVersion
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8000
+    nodePort: null
+  logLevel: INFO
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { cpu: 500m, memory: 384Mi }
+
+collector:
+  enabled: true
+  intervalSeconds: 21600     # every 6 hours
+  metricsPort: 9102
+  # Optional GitHub token (no scopes needed). Raises the API limit from 60 to 5000 per hour.
+  githubToken: ""
+  resources:
+    requests: { cpu: 25m, memory: 96Mi }
+    limits: { cpu: 250m, memory: 256Mi }
+
+frontend:
+  replicas: 1
+  image:
+    repository: ghcr.io/filcualexandru/devops-insights-frontend
+    tag: ""
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8080
+    nodePort: null
+  resources:
+    requests: { cpu: 25m, memory: 32Mi }
+    limits: { cpu: 200m, memory: 96Mi }
+
+postgresql:
+  enabled: true
+  # Red Hat's PostgreSQL image runs with any user ID, which OpenShift requires.
+  image:
+    repository: quay.io/sclorg/postgresql-16-c9s
+    tag: latest
+    pullPolicy: IfNotPresent
+  auth:
+    username: admin
+    password: admin
+    database: devops_insights
+  service:
+    type: ClusterIP
+    port: 5432
+    nodePort: null
+  persistence:
+    enabled: true
+    size: 2Gi
+    storageClass: ""
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { cpu: 500m, memory: 512Mi }
+
+# Used only when postgresql.enabled is false.
+externalDatabase:
+  url: ""
+
+ollama:
+  enabled: true
+  image:
+    repository: ollama/ollama
+    tag: latest
+    pullPolicy: IfNotPresent
+  model: qwen3:1.7b
+  service:
+    type: ClusterIP
+    port: 11434
+    nodePort: null
+  persistence:
+    enabled: true
+    size: 5Gi
+    storageClass: ""
+  # The upstream image runs as root; run it as a fixed user instead. OpenShift overrides this.
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
+  resources:
+    requests: { cpu: 250m, memory: 1Gi }
+    limits: { cpu: "4", memory: 4Gi }
+
+prometheus:
+  image:
+    repository: prom/prometheus
+    tag: v3.8.0
+    pullPolicy: IfNotPresent
+  scrapeInterval: 15s
+  retention: 15d
+  # Basic auth for the UI and API: admin / admin (bcrypt hash of "admin").
+  auth:
+    username: admin
+    password: admin
+    bcryptHash: "$2b$10$xttjzDKs7mGl.C/e5j/ZAeFwuhTqig.e2uD7Xj7S6HSXtD0Y4iOdi"
+  service:
+    type: ClusterIP
+    port: 9090
+    nodePort: null
+  persistence:
+    enabled: true
+    size: 2Gi
+    storageClass: ""
+  # The image's user is the non-numeric "nobody", so give it a numeric ID. OpenShift overrides this.
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 65534
+    runAsGroup: 65534
+    fsGroup: 65534
+    seccompProfile:
+      type: RuntimeDefault
+  resources:
+    requests: { cpu: 100m, memory: 192Mi }
+    limits: { cpu: 500m, memory: 512Mi }
+
+grafana:
+  enabled: true
+  image:
+    repository: grafana/grafana
+    tag: 12.1.1
+    pullPolicy: IfNotPresent
+  admin:
+    username: admin
+    password: admin
+  service:
+    type: ClusterIP
+    port: 3000
+    nodePort: null
+  persistence:
+    enabled: true
+    size: 1Gi
+    storageClass: ""
+  podSecurityContext:
+    runAsNonRoot: true
+    fsGroup: 472
+    seccompProfile:
+      type: RuntimeDefault
+  resources:
+    requests: { cpu: 100m, memory: 128Mi }
+    limits: { cpu: 500m, memory: 384Mi }
+
+# Optional Kubernetes Ingress for the web application.
+ingress:
+  enabled: false
+  className: nginx
+  host: devops-insights.localtest.me
+
+# OpenShift Routes. `appsDomain` is the cluster's apps domain (for example apps-crc.testing);
+# routes are named <component>-<namespace>.<appsDomain>, matching OpenShift's own default.
+route:
+  enabled: false
+  appsDomain: ""

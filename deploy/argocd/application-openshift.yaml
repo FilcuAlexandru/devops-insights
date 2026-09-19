@@ -1,0 +1,35 @@
+# Argo CD Application for OpenShift, using the "Red Hat OpenShift GitOps" operator.
+#
+# The operator's Argo CD lives in the openshift-gitops namespace and may only deploy into
+# namespaces labelled as managed by it. Prepare the target project once:
+#
+#   oc new-project devops-insights
+#   oc label namespace devops-insights argocd.argoproj.io/managed-by=openshift-gitops
+#
+# Then:
+#   oc apply -f deploy/argocd/application-openshift.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: devops-insights
+  namespace: openshift-gitops
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/FilcuAlexandru/devops-insights.git
+    targetRevision: main
+    path: deploy/helm/devops-insights
+    helm:
+      valueFiles:
+        - values-openshift.yaml
+      # Set your cluster's apps domain (oc get ingresses.config/cluster -o jsonpath='{.spec.domain}').
+      parameters:
+        - name: route.appsDomain
+          value: apps-crc.testing
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: devops-insights
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

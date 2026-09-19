@@ -1,0 +1,38 @@
+# Local kind cluster. Every component is published on its own host port, so no port-forward
+# is needed (see deploy/kubernetes/kind/cluster.yaml, which maps these ports to localhost).
+# Images are built locally and loaded into the cluster with `kind load docker-image`.
+environmentName: Kubernetes (kind)
+
+links:
+  apiDocs: http://localhost:30800/api/docs
+  grafana: http://localhost:30300
+  prometheus: http://localhost:30900
+  argocd: https://localhost:30443
+  ollama: http://localhost:31434
+  postgres: localhost:30432
+
+backend:
+  image:
+    repository: devops-insights-backend
+    tag: "0.2.0"
+    pullPolicy: IfNotPresent
+  service: { type: NodePort, port: 8000, nodePort: 30800 }
+
+frontend:
+  image:
+    repository: devops-insights-frontend
+    tag: "0.2.0"
+    pullPolicy: IfNotPresent
+  service: { type: NodePort, port: 8080, nodePort: 30080 }
+
+postgresql:
+  service: { type: NodePort, port: 5432, nodePort: 30432 }
+
+ollama:
+  service: { type: NodePort, port: 11434, nodePort: 31434 }
+
+prometheus:
+  service: { type: NodePort, port: 9090, nodePort: 30900 }
+
+grafana:
+  service: { type: NodePort, port: 3000, nodePort: 30300 }

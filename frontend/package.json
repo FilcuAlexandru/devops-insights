@@ -1,0 +1,9 @@
+{
+    "name": "devops-insights-frontend",
+    "private": true,
+    "type": "module",
+    "description": "Static single-page frontend for DevOps Insights.",
+    "scripts": {
+        "test": "node --test tests/*.test.js"
+    }
+}

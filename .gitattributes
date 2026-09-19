@@ -1,0 +1,4 @@
+* text=auto eol=lf
+*.sh text eol=lf
+frontend/public/assets/vendor/* linguist-vendored
+deploy/helm/devops-insights/files/** linguist-generated

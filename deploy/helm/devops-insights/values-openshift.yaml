@@ -1,0 +1,42 @@
+# OpenShift (OpenShift Local / CRC, Developer Sandbox or a full cluster).
+#
+# - Services stay ClusterIP and are exposed through Routes.
+# - No fixed user IDs: the restricted-v2 SCC assigns them, and every image used here runs
+#   with an arbitrary user ID (group 0).
+# - Set route.appsDomain to your cluster's apps domain, for example:
+#     OpenShift Local:      apps-crc.testing
+#     Developer Sandbox:    apps.sandbox-m2.ll9k.p1.openshiftapps.com
+#     any cluster:          oc get ingresses.config/cluster -o jsonpath='{.spec.domain}'
+environmentName: OpenShift
+
+route:
+  enabled: true
+  appsDomain: apps-crc.testing
+
+# Images are built inside the cluster (see deploy/openshift/README.md). Replace "devops-insights"
+# in the registry path if you use another project name.
+backend:
+  image:
+    repository: image-registry.openshift-image-registry.svc:5000/devops-insights/devops-insights-backend
+    tag: "0.2.0"
+frontend:
+  image:
+    repository: image-registry.openshift-image-registry.svc:5000/devops-insights/devops-insights-frontend
+    tag: "0.2.0"
+
+# Let OpenShift choose the user and group IDs.
+ollama:
+  podSecurityContext:
+    runAsUser: null
+    runAsGroup: null
+    fsGroup: null
+
+prometheus:
+  podSecurityContext:
+    runAsUser: null
+    runAsGroup: null
+    fsGroup: null
+
+grafana:
+  podSecurityContext:
+    fsGroup: null

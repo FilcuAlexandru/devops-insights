@@ -1,0 +1,6 @@
+Alembic migrations for the DevOps Insights database.
+
+    alembic upgrade head      apply all migrations
+    alembic current           show the applied revision
+    alembic check             verify the models match the migrations
+    alembic revision --autogenerate -m "describe the change"

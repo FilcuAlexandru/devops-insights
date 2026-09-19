@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Collect, analyze and understand the DevOps ecosystem.">
+    <title>DevOps Insights</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/assets/css/tokens.css">
+    <link rel="stylesheet" href="/assets/css/base.css">
+    <link rel="stylesheet" href="/assets/css/layout.css">
+    <link rel="stylesheet" href="/assets/css/components.css">
+</head>
+<body>
+    <a class="skip-link" href="#app">Skip to content</a>
+
+    <header class="site-header">
+        <div class="container site-header__inner">
+            <a class="brand" href="#/" aria-label="DevOps Insights home">
+                <svg class="brand__mark" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4 19V9m6 10V5m6 14v-7m6 7H2" fill="none" stroke="currentColor"
+                          stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                DevOps Insights
+            </a>
+            <nav class="nav" aria-label="Primary">
+                <a href="#/" data-nav="dashboard">Dashboard</a>
+                <a href="#/technologies" data-nav="technologies">Technologies</a>
+                <a href="#/repositories" data-nav="repositories">Repositories</a>
+                <a href="#/platform" data-nav="platform">Platform</a>
+            </nav>
+        </div>
+    </header>
+
+    <main id="app" class="container" tabindex="-1">
+        <p class="muted loading">Loading…</p>
+    </main>
+
+    <footer class="site-footer">
+        <div class="container">Collect. Analyze. Understand the DevOps ecosystem.</div>
+    </footer>
+
+    <div id="toasts" class="toasts" role="status" aria-live="polite"></div>
+
+    <noscript><p class="container">This application needs JavaScript.</p></noscript>
+
+    <script src="/config.js"></script>
+    <script src="/assets/vendor/chart.umd.min.js"></script>
+    <script type="module" src="/assets/js/main.js"></script>
+</body>
+</html>

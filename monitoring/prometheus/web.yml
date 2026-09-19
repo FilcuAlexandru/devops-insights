@@ -1,0 +1,5 @@
+# Basic authentication for the Prometheus UI and API. Username: admin, password: admin.
+# The value is a bcrypt hash. Generate another with:
+#   python3 -c "import bcrypt; print(bcrypt.hashpw(b'admin', bcrypt.gensalt()).decode())"
+basic_auth_users:
+  admin: $2b$10$xttjzDKs7mGl.C/e5j/ZAeFwuhTqig.e2uD7Xj7S6HSXtD0Y4iOdi

@@ -1,0 +1,50 @@
+{{- if .Values.grafana.enabled }}
+{{- $name := include "di.service" (dict "root" . "component" "grafana") -}}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "di.labels" . | nindent 4 }}
+    app.kubernetes.io/component: grafana
+type: Opaque
+stringData:
+  GF_SECURITY_ADMIN_USER: {{ .Values.grafana.admin.username | quote }}
+  GF_SECURITY_ADMIN_PASSWORD: {{ .Values.grafana.admin.password | quote }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}-provisioning
+  labels:
+    {{- include "di.labels" . | nindent 4 }}
+    app.kubernetes.io/component: grafana
+data:
+  datasource.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        uid: prometheus
+        type: prometheus
+        access: proxy
+        url: http://{{ include "di.service" (dict "root" . "component" "prometheus") }}:{{ .Values.prometheus.service.port }}
+        isDefault: true
+        editable: false
+        basicAuth: true
+        basicAuthUser: {{ .Values.prometheus.auth.username }}
+        secureJsonData:
+          basicAuthPassword: {{ .Values.prometheus.auth.password | quote }}
+  dashboards.yaml: |
+{{ .Files.Get "files/grafana/dashboards.yml" | indent 4 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}-dashboards
+  labels:
+    {{- include "di.labels" . | nindent 4 }}
+    app.kubernetes.io/component: grafana
+data:
+  devops-insights.json: |
+{{ .Files.Get "files/grafana/dashboards/devops-insights.json" | indent 4 }}
+{{- end }}

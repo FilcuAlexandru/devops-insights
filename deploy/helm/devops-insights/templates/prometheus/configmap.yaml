@@ -1,0 +1,48 @@
+{{- $fullname := include "di.fullname" . -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "di.service" (dict "root" . "component" "prometheus") }}
+  labels:
+    {{- include "di.labels" . | nindent 4 }}
+    app.kubernetes.io/component: prometheus
+data:
+  web.yml: |
+    basic_auth_users:
+      {{ .Values.prometheus.auth.username }}: {{ .Values.prometheus.auth.bcryptHash | quote }}
+  prometheus.yml: |
+    global:
+      scrape_interval: {{ .Values.prometheus.scrapeInterval }}
+      evaluation_interval: {{ .Values.prometheus.scrapeInterval }}
+
+    scrape_configs:
+      - job_name: prometheus
+        basic_auth:
+          username: {{ .Values.prometheus.auth.username }}
+          password: {{ .Values.prometheus.auth.password | quote }}
+        static_configs:
+          - targets: ["localhost:9090"]
+
+      # The backend and the collector are discovered through their Services, so every
+      # replica is scraped individually. The "job" label is the component name, which is
+      # what the Grafana dashboard queries.
+      - job_name: application
+        metrics_path: /metrics
+        kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names: [{{ .Release.Namespace }}]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_label_app_kubernetes_io_instance]
+            regex: {{ .Release.Name }}
+            action: keep
+          - source_labels: [__meta_kubernetes_service_label_app_kubernetes_io_component]
+            regex: backend|collector
+            action: keep
+          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            regex: http|metrics
+            action: keep
+          - source_labels: [__meta_kubernetes_service_label_app_kubernetes_io_component]
+            target_label: job
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod

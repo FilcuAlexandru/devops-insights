@@ -1,0 +1,32 @@
+{{- if .Values.route.enabled }}
+{{- /* OpenShift Routes. Hosts follow OpenShift's default <route>-<namespace>.<apps domain>. */ -}}
+{{- $routes := list
+      (dict "component" "frontend" "port" "http")
+      (dict "component" "backend" "port" "http")
+      (dict "component" "prometheus" "port" "http") -}}
+{{- if .Values.grafana.enabled }}
+{{- $routes = append $routes (dict "component" "grafana" "port" "http") }}
+{{- end }}
+{{- range $routes }}
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ .component }}
+  labels:
+    {{- include "di.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ .component }}
+spec:
+  {{- if $.Values.route.appsDomain }}
+  host: {{ printf "%s-%s.%s" .component $.Release.Namespace $.Values.route.appsDomain }}
+  {{- end }}
+  to:
+    kind: Service
+    name: {{ include "di.service" (dict "root" $ "component" .component) }}
+  port:
+    targetPort: {{ .port }}
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+{{- end }}
+{{- end }}

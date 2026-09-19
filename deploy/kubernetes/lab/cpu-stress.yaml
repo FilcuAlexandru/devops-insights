@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: cpu-stress
+  namespace: devops-insights
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: cpu-stress
+
+  template:
+    metadata:
+      labels:
+        app: cpu-stress
+
+    spec:
+      containers:
+        - name: cpu-stress
+          image: busybox:1.37
+
+          command:
+            - /bin/sh
+            - -c
+            - |
+              while true; do
+                :;
+              done
+
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "16Mi"
+
+            limits:
+              cpu: "500m"
+              memory: "32Mi"

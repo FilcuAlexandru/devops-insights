@@ -1,0 +1,7 @@
+apiVersion: v2
+name: devops-insights
+description: DevOps Insights - backend, collector, frontend, PostgreSQL, Ollama, Prometheus and Grafana.
+type: application
+version: 0.2.0
+appVersion: "0.2.0"
+home: https://github.com/FilcuAlexandru/devops-insights

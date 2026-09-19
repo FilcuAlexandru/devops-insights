@@ -1,0 +1,47 @@
+# In-cluster image builds for OpenShift. The application images are built by OpenShift itself
+# from the local source and stored in the internal registry, so no external registry is needed.
+#
+#   oc apply -f deploy/openshift/build.yaml
+#   oc start-build devops-insights-backend  --from-dir=backend  --follow
+#   oc start-build devops-insights-frontend --from-dir=frontend --follow
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: devops-insights-backend
+---
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: devops-insights-frontend
+---
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: devops-insights-backend
+spec:
+  source:
+    type: Binary
+  strategy:
+    type: Docker
+    dockerStrategy:
+      dockerfilePath: Dockerfile
+  output:
+    to:
+      kind: ImageStreamTag
+      name: devops-insights-backend:0.2.0
+---
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: devops-insights-frontend
+spec:
+  source:
+    type: Binary
+  strategy:
+    type: Docker
+    dockerStrategy:
+      dockerfilePath: Dockerfile
+  output:
+    to:
+      kind: ImageStreamTag
+      name: devops-insights-frontend:0.2.0

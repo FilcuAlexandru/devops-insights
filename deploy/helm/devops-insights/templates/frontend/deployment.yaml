@@ -1,0 +1,73 @@
+{{- $component := dict "root" . "component" "frontend" -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "di.service" $component }}
+  labels:
+    {{- include "di.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
+spec:
+  replicas: {{ .Values.frontend.replicas }}
+  selector:
+    matchLabels:
+      {{- include "di.selector" $component | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "di.selector" $component | nindent 8 }}
+    spec:
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: frontend
+          image: {{ include "di.image" (dict "root" . "image" .Values.frontend.image) }}
+          imagePullPolicy: {{ .Values.frontend.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: BACKEND_URL
+              value: {{ printf "http://%s:%v" (include "di.service" (dict "root" . "component" "backend")) .Values.backend.service.port | quote }}
+            - name: PLATFORM_ENVIRONMENT
+              value: {{ .Values.environmentName | quote }}
+            - name: LINK_API_DOCS
+              value: {{ include "di.link" (dict "root" . "key" "apiDocs" "component" "backend") | quote }}
+            - name: LINK_GRAFANA
+              value: {{ include "di.link" (dict "root" . "key" "grafana" "component" "grafana") | quote }}
+            - name: LINK_PROMETHEUS
+              value: {{ include "di.link" (dict "root" . "key" "prometheus" "component" "prometheus") | quote }}
+            - name: LINK_ARGOCD
+              value: {{ include "di.link" (dict "root" . "key" "argocd" "component" "") | quote }}
+            - name: LINK_OLLAMA
+              value: {{ include "di.link" (dict "root" . "key" "ollama" "component" "") | quote }}
+            - name: LINK_POSTGRES
+              value: {{ include "di.link" (dict "root" . "key" "postgres" "component" "") | quote }}
+          readinessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.frontend.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "di.service" $component }}
+  labels:
+    {{- include "di.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
+spec:
+  type: {{ .Values.frontend.service.type }}
+  selector:
+    {{- include "di.selector" $component | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.frontend.service.port }}
+      targetPort: http
+      {{- with .Values.frontend.service.nodePort }}
+      nodePort: {{ . }}
+      {{- end }}

@@ -1,0 +1,11 @@
+window.APP_CONFIG = {
+    environment: "${PLATFORM_ENVIRONMENT}",
+    links: {
+        apiDocs: "${LINK_API_DOCS}",
+        grafana: "${LINK_GRAFANA}",
+        prometheus: "${LINK_PROMETHEUS}",
+        argocd: "${LINK_ARGOCD}",
+        ollama: "${LINK_OLLAMA}",
+        postgres: "${LINK_POSTGRES}",
+    },
+};

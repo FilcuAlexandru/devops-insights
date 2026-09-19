@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: memory-stress
+  namespace: devops-insights
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: memory-stress
+
+  template:
+    metadata:
+      labels:
+        app: memory-stress
+
+    spec:
+      containers:
+        - name: memory-stress
+          image: python:3.13-alpine
+
+          command:
+            - python
+            - -c
+            - |
+              data = []
+              while True:
+                  data.append("x" * 1024 * 1024)
+
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "16Mi"
+
+            limits:
+              cpu: "200m"
+              memory: "32Mi"

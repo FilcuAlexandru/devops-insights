@@ -1,0 +1,25 @@
+# Emulates OpenShift's restricted-v2 SecurityContextConstraint on a plain Kubernetes cluster:
+# every pod runs with a random high user ID (and group 0, as no runAsGroup is given), which is
+# how OpenShift starts containers. Use it to check that all images work without a fixed user.
+#
+#   helm install uid-test deploy/helm/devops-insights \
+#     -f deploy/helm/devops-insights/values-openshift.yaml \
+#     -f deploy/openshift/arbitrary-uid-test.yaml -n uid-test --create-namespace
+route:
+  enabled: false        # kind has no Route API
+
+backend:
+  image: { repository: devops-insights-backend, tag: "0.2.0", pullPolicy: IfNotPresent }
+frontend:
+  image: { repository: devops-insights-frontend, tag: "0.2.0", pullPolicy: IfNotPresent }
+
+podSecurityContext:
+  runAsUser: 1000680000
+  fsGroup: 1000680000
+
+ollama:
+  podSecurityContext: { runAsUser: 1000680000, fsGroup: 1000680000 }
+prometheus:
+  podSecurityContext: { runAsUser: 1000680000, fsGroup: 1000680000 }
+grafana:
+  podSecurityContext: { runAsUser: 1000680000, fsGroup: 1000680000 }

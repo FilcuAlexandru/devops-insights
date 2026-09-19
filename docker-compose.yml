@@ -1,0 +1,196 @@
+# DevOps Insights - local stack.
+#
+#   docker compose up -d --build
+#
+# Every component with a login uses  admin / admin.  See docs/urls-and-credentials.md.
+
+name: devops-insights
+
+x-backend: &backend
+  build:
+    context: ./backend
+  image: devops-insights-backend:local
+  environment: &backend-environment
+    APP_ENV: production
+    LOG_LEVEL: INFO
+    DATABASE_URL: postgresql+psycopg://admin:admin@postgres:5432/devops_insights
+    OLLAMA_BASE_URL: http://ollama:11434
+    OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:1.7b}
+    OLLAMA_TIMEOUT: "120"
+    GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+    COLLECTION_INTERVAL_SECONDS: ${COLLECTION_INTERVAL_SECONDS:-21600}
+    COLLECTION_ON_STARTUP: ${COLLECTION_ON_STARTUP:-true}
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: devops-insights-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: devops_insights
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+    ports:
+      - "5432:5432"
+    volumes:
+      - database:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d devops_insights"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: devops-insights-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # Downloads the model in the background. The rest of the stack does not wait for it:
+  # AI features simply report "model missing" until the download has finished.
+  ollama-init:
+    image: ollama/ollama:latest
+    container_name: devops-insights-ollama-init
+    restart: "no"
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["ollama", "pull", "${OLLAMA_MODEL:-qwen3:1.7b}"]
+    depends_on:
+      ollama:
+        condition: service_healthy
+
+  migrate:
+    <<: *backend
+    container_name: devops-insights-migrate
+    restart: "no"
+    command: ["python", "-m", "devops_insights.migrate"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  backend:
+    <<: *backend
+    container_name: devops-insights-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready', timeout=5)"
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+
+  collector:
+    <<: *backend
+    container_name: devops-insights-collector
+    restart: unless-stopped
+    command: ["python", "-m", "devops_insights.worker"]
+    ports:
+      - "9102:9102"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  frontend:
+    build:
+      context: ./frontend
+    image: devops-insights-frontend:local
+    container_name: devops-insights-frontend
+    restart: unless-stopped
+    environment:
+      BACKEND_URL: http://backend:8000
+      PLATFORM_ENVIRONMENT: Docker Compose
+      LINK_API_DOCS: http://localhost:8000/api/docs
+      LINK_GRAFANA: http://localhost:3000
+      LINK_PROMETHEUS: http://localhost:9090
+      LINK_OLLAMA: http://localhost:11434
+      LINK_POSTGRES: localhost:5432
+    ports:
+      - "8080:8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  prometheus:
+    image: prom/prometheus:v3.8.0
+    container_name: devops-insights-prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --web.config.file=/etc/prometheus/web.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/web.yml:/etc/prometheus/web.yml:ro
+      - prometheus:/prometheus
+    healthcheck:
+      # "Basic YWRtaW46YWRtaW4=" is admin:admin
+      test:
+        - CMD
+        - wget
+        - -q
+        - --spider
+        - "--header=Authorization: Basic YWRtaW46YWRtaW4="
+        - http://localhost:9090/-/healthy
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+
+  grafana:
+    image: grafana/grafana:12.1.1
+    container_name: devops-insights-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/etc/grafana/dashboards:ro
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+
+volumes:
+  database:
+  prometheus:
+  grafana:
+  # Same name as in earlier versions of the project, so an already downloaded model is reused.
+  ollama_data:
+    name: devops-insights_ollama_data

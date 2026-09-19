@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# Environment
+.env
+
+# Node
+node_modules/
+
+# Helm
+*.tgz
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
